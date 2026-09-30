@@ -27,7 +27,7 @@ int MoveGenerator::lineWeight(int runLength, int openEnds) {
     return 10;
 }
 
-int MoveGenerator::staticScore(const Board& board, int r, int c, Cell color) {
+int MoveGenerator::scoreCandidateMove(const Board& board, int r, int c, Cell color) {
     Cell opp = getOpponent(color);
     int score = 0;
 
@@ -72,7 +72,7 @@ int MoveGenerator::staticScore(const Board& board, int r, int c, Cell color) {
     return score;
 }
 
-void MoveGenerator::candidates(const Board& board, int radius, std::vector<Point>& out) {
+void MoveGenerator::generateCandidateMoves(const Board& board, int radius, std::vector<Point>& out) {
     // Use a monotonically increasing stamp instead of clearing a 361-cell array
     // on every call (this runs at every search node, so the clear cost matters).
     static thread_local int seen[BOARD_SIZE][BOARD_SIZE] = {};
@@ -103,8 +103,8 @@ void MoveGenerator::candidates(const Board& board, int radius, std::vector<Point
     if (!anyStone) out.push_back({BOARD_SIZE / 2, BOARD_SIZE / 2});
 }
 
-std::vector<Point> MoveGenerator::candidates(const Board& board, int radius) {
+std::vector<Point> MoveGenerator::generateCandidateMoves(const Board& board, int radius) {
     std::vector<Point> result;
-    candidates(board, radius, result);
+    generateCandidateMoves(board, radius, result);
     return result;
 }

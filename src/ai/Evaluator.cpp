@@ -1,9 +1,9 @@
 #include "Evaluator.hpp"
-#include "../engine/Rules.hpp"
+#include "../engine/GomokuRules.hpp"
 
 
 
-int Evaluator::evaluate(const Board& board, Cell aiColor) {
+int Evaluator::evaluatePosition(const Board& board, Cell aiColor) {
     int score = 0;
     Cell oppColor = getOpponent(aiColor);
 

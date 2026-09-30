@@ -1,22 +1,22 @@
-#ifndef RULES_HPP
-#define RULES_HPP
+#ifndef GOMOKU_RULES_HPP
+#define GOMOKU_RULES_HPP
 
 #include "../core/Types.hpp"
 #include "Board.hpp"
 #include <vector>
 
-class Rules {
+class GomokuRules {
 public:
     // Core move validation
     static bool isLegalMove(const Board& board, int r, int c, Cell color);
 
     // Win conditions
-    static bool hasFive(const Board& board, Cell color);
-    static bool hasFiveAt(const Board& board, int r, int c, Cell color);
-    static bool hasTenCaptures(const Board& board, Cell color);
+    static bool hasFiveInRow(const Board& board, Cell color);
+    static bool hasFiveInRowAt(const Board& board, int r, int c, Cell color);
+    static bool hasCaptureWin(const Board& board, Cell color);
 
     // Captures
-    static std::vector<Point> checkCaptures(const Board& board, int r, int c, Cell color);
+    static std::vector<Point> findCapturedStones(const Board& board, int r, int c, Cell color);
 
     // Advanced rules (Breakable 5)
     static bool isFiveBreakable(const Board& board, Cell winnerColor);
@@ -34,4 +34,4 @@ private:
                               Cell color);
 };
 
-#endif // RULES_HPP
+#endif // GOMOKU_RULES_HPP

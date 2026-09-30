@@ -1,7 +1,7 @@
-#include "src/engine/GameEngine.hpp"
-#include "src/engine/Rules.hpp"
-#include "src/engine/Zobrist.hpp"
-#include "src/ai/AI.hpp"
+#include "../src/engine/GameEngine.hpp"
+#include "../src/engine/GomokuRules.hpp"
+#include "../src/engine/Zobrist.hpp"
+#include "../src/ai/GomokuAI.hpp"
 #include <cassert>
 #include <iostream>
 
@@ -28,7 +28,7 @@ namespace {
             board.setCell(9 + 2 * dr[d], 9 + 2 * dc[d], WHITE);
             board.setCell(9 + 3 * dr[d], 9 + 3 * dc[d], BLACK);
         }
-        std::vector<Point> captured = Rules::checkCaptures(board, 9, 9, BLACK);
+        std::vector<Point> captured = GomokuRules::findCapturedStones(board, 9, 9, BLACK);
         assert(captured.size() == 16);
     }
 
@@ -39,7 +39,7 @@ namespace {
         board.setCell(5, 2, WHITE);
         board.setCell(5, 3, WHITE);
 
-        std::vector<Point> captured = Rules::checkCaptures(board, 5, 4, BLACK);
+        std::vector<Point> captured = GomokuRules::findCapturedStones(board, 5, 4, BLACK);
         assert(captured.empty());
     }
 
@@ -50,16 +50,16 @@ namespace {
         board.setCell(9, 10, BLACK);
         board.setCell(8, 9, BLACK);
         board.setCell(10, 9, BLACK);
-        assert(Rules::isDoubleThree(board, 9, 9, BLACK));
-        assert(!Rules::isLegalMove(board, 9, 9, BLACK));
+        assert(GomokuRules::isDoubleThree(board, 9, 9, BLACK));
+        assert(!GomokuRules::isLegalMove(board, 9, 9, BLACK));
 
         // A capture makes the same double-three legal, as required by the
         // official subject.
         board.setCell(8, 8, WHITE);
         board.setCell(7, 7, WHITE);
         board.setCell(6, 6, BLACK);
-        assert(!Rules::checkCaptures(board, 9, 9, BLACK).empty());
-        assert(Rules::isLegalMove(board, 9, 9, BLACK));
+        assert(!GomokuRules::findCapturedStones(board, 9, 9, BLACK).empty());
+        assert(GomokuRules::isLegalMove(board, 9, 9, BLACK));
     }
 
     void testEngineRejectsForbiddenMove() {
@@ -82,8 +82,8 @@ namespace {
         Board board;
         board.addCaptures(BLACK, 10);
         board.addCaptures(WHITE, 8);
-        assert(Rules::hasTenCaptures(board, BLACK));
-        assert(!Rules::hasTenCaptures(board, WHITE));
+        assert(GomokuRules::hasCaptureWin(board, BLACK));
+        assert(!GomokuRules::hasCaptureWin(board, WHITE));
     }
 
     void testBreakableFive() {
@@ -96,12 +96,12 @@ namespace {
         // W can play (10,5) and remove the line's endpoint.
         board.setCell(8, 5, BLACK);
         board.setCell(7, 5, WHITE);
-        assert(Rules::isFiveBreakable(board, BLACK));
+        assert(GomokuRules::isFiveBreakable(board, BLACK));
 
         Board solidLine;
         for (int c = 5; c <= 9; ++c)
             solidLine.setCell(9, c, BLACK);
-        assert(!Rules::isFiveBreakable(solidLine, BLACK));
+        assert(!GomokuRules::isFiveBreakable(solidLine, BLACK));
     }
 
     void testBoardBoundsAndFullness() {
@@ -119,10 +119,10 @@ namespace {
     void testAiReturnsALegalMove() {
         GameEngine game;
         game.applyMove(9, 9, BLACK);
-        AI ai;
+        GomokuAI ai;
         ai.setTimeLimit(20);
-        Point move = ai.getBestMove(game, WHITE);
-        assert(Rules::isLegalMove(game.getBoard(), move.row, move.col, WHITE));
+        Point move = ai.searchBestMove(game, WHITE);
+        assert(GomokuRules::isLegalMove(game.getBoard(), move.row, move.col, WHITE));
     }
 }
 

@@ -21,8 +21,8 @@ MoveResult GameEngine::applyMove(int r, int c, Cell color) {
     }
 
     // 1. Validate Move
-    if (!Rules::isLegalMove(board, r, c, color)) {
-        if (board.inBounds(r, c) && board.getCell(r, c) == EMPTY && Rules::isDoubleThree(board, r, c, color)) {
+    if (!GomokuRules::isLegalMove(board, r, c, color)) {
+        if (board.inBounds(r, c) && board.getCell(r, c) == EMPTY && GomokuRules::isDoubleThree(board, r, c, color)) {
             throw std::invalid_argument("Forbidden Move: Double-Three!");
         }
         throw std::invalid_argument("Invalid move.");
@@ -37,7 +37,7 @@ MoveResult GameEngine::applyMove(int r, int c, Cell color) {
     board.setCell(r, c, color);
 
     // 4. Process Captures
-    mv.captured = Rules::checkCaptures(board, r, c, color);
+    mv.captured = GomokuRules::findCapturedStones(board, r, c, color);
     for (const auto& p : mv.captured) {
         board.setCell(p.row, p.col, EMPTY); // Remove from board
     }
@@ -82,7 +82,7 @@ void GameEngine::checkWinConditions(Cell lastColor) {
     Cell oppColor = getOpponent(lastColor);
 
     // Condition 1: Win by 10 captures
-    if (Rules::hasTenCaptures(board, lastColor)) {
+    if (GomokuRules::hasCaptureWin(board, lastColor)) {
         gameOver = true;
         winner = lastColor;
         winReason = (lastColor == BLACK ? "Black" : "White") + std::string(" wins by 10 captures!");
@@ -91,7 +91,7 @@ void GameEngine::checkWinConditions(Cell lastColor) {
 
     // Condition 2: Opponent's 5-in-a-row survived
     // (If the last player didn't break it on this turn, the opponent wins)
-    if (Rules::hasFive(board, oppColor)) {
+    if (GomokuRules::hasFiveInRow(board, oppColor)) {
         gameOver = true;
         winner = oppColor;
         winReason = (oppColor == BLACK ? "Black" : "White") + std::string(" wins! (5-in-a-row was not broken)");
@@ -99,8 +99,8 @@ void GameEngine::checkWinConditions(Cell lastColor) {
     }
 
     // Condition 3: Last player created a 5-in-a-row
-    if (Rules::hasFive(board, lastColor)) {
-        if (!Rules::isFiveBreakable(board, lastColor)) {
+    if (GomokuRules::hasFiveInRow(board, lastColor)) {
+        if (!GomokuRules::isFiveBreakable(board, lastColor)) {
             gameOver = true;
             winner = lastColor;
             winReason = (lastColor == BLACK ? "Black" : "White") + std::string(" wins with 5-in-a-row!");

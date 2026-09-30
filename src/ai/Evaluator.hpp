@@ -9,7 +9,7 @@ class Evaluator {
 public:
     // Evaluates the board from the perspective of the AI color.
     // Positive score means AI is winning, negative means opponent is winning.
-    static int evaluate(const Board& board, Cell aiColor);
+    static int evaluatePosition(const Board& board, Cell aiColor);
 
 private:
     // Scores a specific line on the board

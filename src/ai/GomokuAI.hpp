@@ -1,5 +1,5 @@
-#ifndef AI_HPP
-#define AI_HPP
+#ifndef GOMOKU_AI_HPP
+#define GOMOKU_AI_HPP
 
 #include "../engine/GameEngine.hpp"
 #include "../core/Types.hpp"
@@ -7,10 +7,10 @@
 #include <chrono>
 #include <exception>
 
-class AI {
+class GomokuAI {
 public:
     // Takes the engine state and returns the best Point to play.
-    Point getBestMove(GameEngine& engine, Cell aiColor);
+    Point searchBestMove(GameEngine& engine, Cell aiColor);
 
     // ===== BONUS (AI difficulty selector) =====
     // Set the per-move thinking budget in milliseconds. A bigger budget lets the
@@ -51,7 +51,7 @@ private:
 
     // --- Fast incremental board mutation (no rule/legality/full-scan overhead) ---
     // Returns true if this move is an immediate win for `color`.
-    bool applySearchMove(Board& b, int r, int c, Cell color, Undo& u);
+    void applySearchMove(Board& b, int r, int c, Cell color, Undo& u);
     void undoSearchMove(Board& b, const Undo& u);
 
     // Negamax with alpha-beta. Score is from `color`'s point of view.
@@ -65,4 +65,4 @@ private:
                     int ply, Point ttMove, int cap);
 };
 
-#endif // AI_HPP
+#endif // GOMOKU_AI_HPP

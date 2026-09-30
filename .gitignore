@@ -1,0 +1,4 @@
+*.o
+*.d
+/Gomoku
+/run_tests

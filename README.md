@@ -1,6 +1,6 @@
 # ⛩️ Gomoku AI Engine — Pente Variant
 
-> **A 1337 (42 Network) Student Project** — A high-performance C++ implementation of Gomoku (Pente variant) featuring a custom graphical interface built with **SFML 3** and a heavily optimized AI engine capable of searching multiple turns ahead in **under 0.5 seconds**.
+> **A 1337 (42 Network) Student Project** — A C++20 implementation of Gomoku (Pente variant) with a custom **SFML 3** interface, a rule-focused test suite, and a time-bounded tactical AI.
 
 ---
 
@@ -16,7 +16,7 @@ game-tree-search, move-ordering, five-in-a-row, capture-game, 42cursus
 ![SFML 3](https://img.shields.io/badge/Graphics-SFML%203-green?style=flat-square)
 ![School](https://img.shields.io/badge/School-1337%20%7C%2042%20Network-orange?style=flat-square)
 ![AI](https://img.shields.io/badge/AI-Minimax%20%2B%20Alpha--Beta-purple?style=flat-square)
-![Response Time](https://img.shields.io/badge/AI%20Response-under%200.5s-red?style=flat-square)
+![AI Budget](https://img.shields.io/badge/AI%20Budget-configurable-red?style=flat-square)
 ![License](https://img.shields.io/badge/License-Academic-lightgrey?style=flat-square)
 
 ---
@@ -39,13 +39,13 @@ game-tree-search, move-ordering, five-in-a-row, capture-game, 42cursus
 
 This project was developed as part of the **1337 School curriculum** (a member of the **42 Network**), one of the most rigorous peer-to-peer coding school programs in the world.
 
-The goal was to build a **complete, competitive Gomoku engine** from scratch — no game libraries, no pre-built AI frameworks — enforcing every rule of the professional Pente ruleset, while keeping the AI response time strictly **under 0.5 seconds** regardless of board state or search depth.
+The goal was to build a complete Gomoku/Pente engine from scratch, enforce the project's rule set consistently, and make the AI return a legal move within its configured search budget.
 
 **Key achievements:**
-- 🧠 AI regularly reaches **search depth 9–10** within the time budget
-- ⚡ Worst-case AI move time: **< 0.5 seconds**
+- 🧠 Iterative-deepening AI with configurable **100–420 ms** move budgets
+- ⚡ Search returns the best move from the last completed iteration at timeout
 - 🎮 Full graphical interface with menus, themes, and in-game overlays
-- ✅ Exhaustive rule-validation test suite included
+- ✅ Headless tests for Pente rules and legal AI moves
 
 ---
 
@@ -70,7 +70,7 @@ machine with `make test`.
 
 ## 🧠 Artificial Intelligence
 
-The AI is designed to be **aggressive, defensive, and extremely fast**. It strictly respects the `< 0.5s` response time constraint through a layered stack of advanced search techniques.
+The AI balances offense and defense with a layered search. Its default 420 ms budget is configurable through the Easy, Medium, and Hard menu settings.
 
 ---
 
@@ -102,7 +102,7 @@ Before the AI evaluates candidate moves, it **sorts them** — placing captures,
 
 ### 🔄 Iterative Deepening
 
-Rather than committing to a fixed search depth, the AI searches at depth 1, then depth 2, then depth 3, and so on. When the **~420ms internal timer** fires, the current search is cleanly aborted (via a managed exception that unwinds safely), and the **best move from the last fully completed depth** is returned — guaranteeing a valid move is always ready well under the 0.5s limit.
+Rather than committing to a fixed search depth, the AI searches at depth 1, then depth 2, then depth 3, and so on. It checks its time budget periodically; if a deeper iteration runs out of time, the best move from the last fully completed depth is returned.
 
 ---
 
@@ -135,38 +135,46 @@ Together, PVS + LMR allow the AI to routinely reach **depth 9–10** within the 
 
 ## 🏗️ Architecture
 
-The codebase follows a strict **decoupled layered architecture**, ensuring thread safety and zero state corruption during deep AI simulations. Each layer has a single, well-defined responsibility.
+The code is split by responsibility. The rule engine is independent of SFML, while the AI searches a private board copy so simulations do not mutate the live game.
 
 ```
 src/
 ├── core/                  # Fundamental shared data types
 │   └── Types.hpp          # Cell enums, Point struct, MoveResult struct
 │
-├── engine/                # Pure game logic — no UI, no turn management
-│   ├── Board              # Data container: cell storage, bounds checking, state arrays
-│   ├── Rules              # 100% stateless static rule-validation functions
-│   ├── GameEngine         # State mutator: applyMove(), undoMove(), win detection
-│   └── Zobrist            # 64-bit random key generator for board state hashing
+├── engine/                # Board state, rules, move history, and win detection
+│   ├── Board.hpp/.cpp
+│   ├── GomokuRules.hpp/.cpp
+│   ├── GameEngine.hpp/.cpp
+│   └── Zobrist.hpp/.cpp
 │
-├── game/                  # Orchestration layer
-│   └── GameSession        # Turn switching, AI scheduling, UI state string generation
+├── game/                  # Turn switching, AI scheduling, hints, undo/redo
+│   └── GameSession.hpp/.cpp
 │
-├── gui/                   # SFML presentation layer (no game logic)
-│   ├── GameWindow         # Window lifecycle, event loop, screen routing
-│   ├── InputHandler       # Converts raw pixel coordinates to board grid coordinates
-│   └── Renderer           # Pure drawing: grid, hoshi points, stones, text, overlays
+├── gui/                   # SFML presentation and input
+│   ├── GameWindow.hpp/.cpp
+│   ├── InputHandler.hpp/.cpp
+│   ├── Renderer.hpp/.cpp
+│   └── GuiConstants.hpp
 │
-└── ai/                    # Artificial intelligence subsystem
-    ├── AI                 # Time management, iterative deepening loop, exception safety
-    ├── MoveGenerator      # Reduces 361 candidates to ~30 nearby moves, sorts by priority
-    ├── Evaluator          # Scoring function: reads board lines, assigns values (+100,000 for win)
-    └── TranspositionTable # Custom array-based cache for Zobrist hash entries
+├── ai/                    # Search, move ordering, evaluation, and caching
+│   ├── GomokuAI.hpp/.cpp
+│   ├── MoveGenerator.hpp/.cpp
+│   ├── Evaluator.hpp/.cpp
+│   └── TranspositionTable.hpp/.cpp
+│
+├── src/main.cpp
+└── tests/
+    └── test_rules.cpp
 ```
 
 **Design principles enforced throughout:**
-- The `engine/` layer has **no knowledge** of the UI or AI layers
-- The `ai/` layer operates on a **copy of the board** — it never touches live game state
-- All rule validation is **stateless** — the same function called with the same inputs always returns the same result
+- The `engine/` layer has no dependency on the UI.
+- The `ai/` layer searches a copy of the board and calls the shared rule implementation.
+- `GameSession` coordinates turns and presentation-facing state; it does not draw UI.
+- `make test` builds the rule and AI tests without linking SFML.
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the module responsibilities, key call flow, and refactor naming map.
 
 ---
 
@@ -178,27 +186,15 @@ src/
 | **Make** | Standard GNU Make |
 | **SFML** | Version 3.x (uses SFML 3.0 API — `openFromFile`, `std::optional` event polling) |
 
-> ⚠️ **SFML 2.x is not compatible.** The SFML 3.0 API has breaking changes from 2.x. Make sure you install version 3.
+> ⚠️ **SFML 2.x is not compatible.** The SFML 3.0 API has breaking changes from 2.x. Verify `pkg-config --modversion sfml-graphics` reports version 3.0 or newer.
 
 ---
 
 ### Installing SFML
 
-**Ubuntu / Debian (Linux):**
-```bash
-sudo apt update
-sudo apt install libsfml-dev
-```
-
-**macOS (Homebrew):**
-```bash
-brew install sfml
-```
-
-**Arch Linux:**
-```bash
-sudo pacman -S sfml
-```
+Install the SFML 3 development package for your operating system and ensure
+`pkg-config` can find `sfml-graphics`. Some distributions still ship SFML 2
+under the generic development-package name.
 
 ---
 
@@ -220,7 +216,7 @@ make
 3. If vs AI: select **difficulty** (Easy / Medium / Hard) and **your color**
 4. Play!
 
-> During a match, the **bottom bar** shows the AI's last move time in milliseconds. The **top-left** shows whose turn it is (with a colored stone indicator). The most recently placed stone is highlighted with a **red ring**. Press **? CONTROLS** (top-right) to open the in-game controls overlay.
+> During a match, the right-side panel shows the active player, move count, game status, capture-pair progress, and the AI's last move time. The most recent move has a gold ring. Press **? CONTROLS** at the top of the panel to open the controls overlay.
 
 ---
 
@@ -253,7 +249,7 @@ make re       # Full clean rebuild from scratch
 | **`H`** | Show a move hint (suggested move is highlighted — not played automatically) |
 | **`U`** | Undo last move |
 | **`Y`** | Redo last undone move |
-| **`T`** | Toggle Dark / Light theme (works on every screen) |
+| **`T`** | Toggle between dark walnut and light parchment board palettes |
 | **`R`** | Return to the main menu |
 | **`Esc`** | Go back one screen |
 | **`E` / `M` / `D`** | Set difficulty to Easy / Medium / Hard (on the AI setup screen) |
@@ -308,27 +304,30 @@ Undone moves are tracked on a **redo stack**, which is cleared the moment you ma
 
 ---
 
-### 4. 🌙 Dark / Light Theme (`T`)
-Pressing `T` re-skins the **entire application** — board background, grid lines, hoshi dots, stone outlines, and all text — between a warm **light wood** theme and a cool **dark slate** theme. Works on all menus and screens.
+### 4. 🌙 Dark / Light Board (`T`)
+Pressing `T` switches the board between dark walnut and light parchment.
+Grid lines, star points, and stone outlines adjust for contrast; the charcoal
+HUD stays consistent.
 
-**How to verify:** Press `T` repeatedly on any screen.
+**How to verify:** Start a game and press `T` to compare the two board palettes.
 
 ---
 
 ### 5. 🔴 Last-Move Marker
-The most recently placed stone is highlighted with a **red ring**, making it immediately clear where the last move was played — especially useful after the AI moves.
+The most recently placed stone is highlighted with a **gold ring**, making it immediately clear where the last move was played — especially useful after the AI moves.
 
 *(The green ring shown with `H` is the separate move-suggestion indicator.)*
 
-**How to verify:** Play any move — a red ring appears on it and updates after every subsequent move.
+**How to verify:** Play any move — a gold ring appears on it and updates after every subsequent move.
 
 ---
 
 ### 6. 🖥️ Quality-of-Life UI
 - Multi-screen **gamer-style menu** system with smooth screen transitions
-- **Turn indicator** (colored stone + player label) in the top-left corner
+- **Turn indicator** (colored stone + player label) in the right-side panel
 - **? CONTROLS** overlay accessible from within a live game
-- Real-time **AI move-time display** in milliseconds at the bottom of the screen
+- **Capture progress** toward the five-pair win condition for each player
+- **AI move-time display** in milliseconds in the right-side panel
 
 ---
 

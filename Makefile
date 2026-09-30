@@ -3,7 +3,7 @@ TEST_NAME = run_tests
 
 # --- Directory Modules ---
 ENGINE_SRC = src/engine/Board.cpp \
-             src/engine/Rules.cpp \
+             src/engine/GomokuRules.cpp \
              src/engine/GameEngine.cpp
 
 GAME_SRC   = src/game/GameSession.cpp
@@ -12,7 +12,7 @@ GUI_SRC    = src/gui/InputHandler.cpp \
              src/gui/Renderer.cpp \
              src/gui/GameWindow.cpp
 
-AI_SRC     = src/ai/AI.cpp \
+AI_SRC     = src/ai/GomokuAI.cpp \
 			 src/ai/MoveGenerator.cpp \
 			 src/ai/Evaluator.cpp	\
 			 src/engine/Zobrist.cpp \
@@ -24,18 +24,21 @@ AI_SRC     = src/ai/AI.cpp \
 COMMON_SRC = $(ENGINE_SRC) $(GAME_SRC) $(GUI_SRC) $(AI_SRC)
 
 # Main executable sources
-SRC = $(COMMON_SRC) main.cpp
+SRC = $(COMMON_SRC) src/main.cpp
 OBJ = $(SRC:.cpp=.o)
 
 # Tests deliberately do not link the GUI. This keeps `make test` useful on a
 # headless machine and avoids requiring SFML just to validate the rules engine.
-TEST_SRC = $(ENGINE_SRC) $(AI_SRC) test.cpp
+TEST_SRC = $(ENGINE_SRC) $(AI_SRC) tests/test_rules.cpp
 TEST_OBJ = $(TEST_SRC:.cpp=.o)
 
 # --- Compiler Settings ---
 CXX = c++
-CXXFLAGS = -Wall -Wextra -Werror -std=c++20 -O3 -MMD -MP -I/usr/local/include -I/opt/homebrew/include
-LDFLAGS  = -L/usr/local/lib -L/opt/homebrew/lib -lsfml-graphics -lsfml-window -lsfml-system
+SFML_CFLAGS ?= $(shell pkg-config --cflags sfml-graphics 2>/dev/null)
+SFML_LIBS   ?= $(shell pkg-config --libs sfml-graphics 2>/dev/null || echo -lsfml-graphics -lsfml-window -lsfml-system)
+
+CXXFLAGS = -Wall -Wextra -Werror -std=c++20 -O3 -MMD -MP -I. $(SFML_CFLAGS)
+LDFLAGS  = $(SFML_LIBS)
 RM = rm -f
 
 # Auto-generated header dependency files (so editing a .hpp triggers a rebuild

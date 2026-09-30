@@ -1,7 +1,7 @@
-#include "AI.hpp"
+#include "GomokuAI.hpp"
 #include "MoveGenerator.hpp"
 #include "Evaluator.hpp"
-#include "../engine/Rules.hpp"
+#include "../engine/GomokuRules.hpp"
 #include <iostream>
 #include <algorithm>
 #include <limits>
@@ -19,12 +19,12 @@ namespace {
     const int DIR8_DC[8] = {-1,  0,  1, -1, 1, -1, 0, 1};
 }
 
-long long AI::getElapsedTime() const {
+long long GomokuAI::getElapsedTime() const {
     auto now = std::chrono::steady_clock::now();
     return std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime).count();
 }
 
-bool AI::timeIsUp() {
+bool GomokuAI::timeIsUp() {
     // Check often enough to leave headroom under the subject's 500 ms limit,
     // without paying for a clock read on every node.
     if ((++nodeCount & 127) != 0) return false;
@@ -33,7 +33,7 @@ bool AI::timeIsUp() {
 
 // --- Fast incremental make/undo (mirrors the engine's capture rule) ----------
 
-bool AI::applySearchMove(Board& b, int r, int c, Cell color, Undo& u) {
+void GomokuAI::applySearchMove(Board& b, int r, int c, Cell color, Undo& u) {
     Cell opp = getOpponent(color);
     u.r = r; u.c = c; u.color = color; u.nCaps = 0;
 
@@ -59,10 +59,9 @@ bool AI::applySearchMove(Board& b, int r, int c, Cell color, Undo& u) {
     // Terminal status is evaluated by negamax using the exact engine rules.
     // Keeping this helper limited to make/undo makes it impossible for the AI
     // and GameEngine to disagree about breakable fives.
-    return b.getCaptures(color) >= 10 || Rules::hasFiveAt(b, r, c, color);
 }
 
-void AI::undoSearchMove(Board& b, const Undo& u) {
+void GomokuAI::undoSearchMove(Board& b, const Undo& u) {
     if (u.nCaps > 0) {
         b.removeCaptures(u.color, u.nCaps);
         Cell opp = getOpponent(u.color);
@@ -72,22 +71,22 @@ void AI::undoSearchMove(Board& b, const Undo& u) {
     b.setCell(u.r, u.c, EMPTY);
 }
 
-int AI::terminalScore(const Board& b, Cell color, bool previousFivePending) const {
+int GomokuAI::terminalScore(const Board& b, Cell color, bool previousFivePending) const {
     Cell opponent = getOpponent(color);
 
-    if (Rules::hasTenCaptures(b, color)) return WIN_SCORE;
-    if (Rules::hasTenCaptures(b, opponent)) return -WIN_SCORE;
+    if (GomokuRules::hasCaptureWin(b, color)) return WIN_SCORE;
+    if (GomokuRules::hasCaptureWin(b, opponent)) return -WIN_SCORE;
 
     // A five is terminal only when it cannot be broken by a legal capture.
-    if (Rules::hasFive(b, color) &&
-        !Rules::isFiveBreakable(b, color))
+    if (GomokuRules::hasFiveInRow(b, color) &&
+        !GomokuRules::isFiveBreakable(b, color))
         return WIN_SCORE;
-    if (Rules::hasFive(b, opponent)) {
+    if (GomokuRules::hasFiveInRow(b, opponent)) {
         // Immediately after a breakable five is formed, the opponent gets one
         // move to capture it. Once that move has been made, a surviving line
         // is a win for its owner even if it remains technically breakable.
         if (!previousFivePending ||
-            !Rules::isFiveBreakable(b, opponent))
+            !GomokuRules::isFiveBreakable(b, opponent))
             return -WIN_SCORE;
     }
     return 0;
@@ -95,7 +94,7 @@ int AI::terminalScore(const Board& b, Cell color, bool previousFivePending) cons
 
 // --- Move ordering ------------------------------------------------------------
 
-void AI::orderMoves(const Board& b, std::vector<Point>& moves, Cell color,
+void GomokuAI::orderMoves(const Board& b, std::vector<Point>& moves, Cell color,
                     int ply, Point ttMove, int cap) {
     Point k0 = (ply < MAX_PLY) ? killers[ply][0] : Point{-1, -1};
     Point k1 = (ply < MAX_PLY) ? killers[ply][1] : Point{-1, -1};
@@ -103,7 +102,7 @@ void AI::orderMoves(const Board& b, std::vector<Point>& moves, Cell color,
     static thread_local std::vector<std::pair<int, Point>> scored;
     scored.clear();
     for (const Point& m : moves) {
-        int s = MoveGenerator::staticScore(b, m.row, m.col, color);
+        int s = MoveGenerator::scoreCandidateMove(b, m.row, m.col, color);
         if (m.row == ttMove.row && m.col == ttMove.col) s += 100000000; // PV move first
         else if ((m.row == k0.row && m.col == k0.col) ||
                  (m.row == k1.row && m.col == k1.col)) s += 5000000;    // killers
@@ -121,7 +120,7 @@ void AI::orderMoves(const Board& b, std::vector<Point>& moves, Cell color,
 
 // --- Negamax search -----------------------------------------------------------
 
-int AI::negamax(Board& b, int depth, int ply, int alpha, int beta, Cell color,
+int GomokuAI::negamax(Board& b, int depth, int ply, int alpha, int beta, Cell color,
                 bool previousFivePending) {
     if (timeIsUp()) throw TimeOutException();
 
@@ -141,19 +140,19 @@ int AI::negamax(Board& b, int depth, int ply, int alpha, int beta, Cell color,
     }
 
     if (depth <= 0) {
-        return Evaluator::evaluate(b, color);
+        return Evaluator::evaluatePosition(b, color);
     }
 
     // Wider neighbourhood near the root (don't miss tactical jumps); tighter
     // deeper down so the branching factor stays small and we reach depth.
     int radius = (ply <= 1) ? 2 : 1;
     std::vector<Point>& moves = moveBuf[ply < MAX_PLY ? ply : MAX_PLY - 1];
-    MoveGenerator::candidates(b, radius, moves);
+    MoveGenerator::generateCandidateMoves(b, radius, moves);
     moves.erase(std::remove_if(moves.begin(), moves.end(),
         [&](const Point& m) {
-            return !Rules::isLegalMove(b, m.row, m.col, color);
+            return !GomokuRules::isLegalMove(b, m.row, m.col, color);
         }), moves.end());
-    if (moves.empty()) return Evaluator::evaluate(b, color);
+    if (moves.empty()) return Evaluator::evaluatePosition(b, color);
     orderMoves(b, moves, color, ply, ttMove, INNER_CAP);
 
     int originalAlpha = alpha;
@@ -169,8 +168,8 @@ int AI::negamax(Board& b, int depth, int ply, int alpha, int beta, Cell color,
         int score;
         if (moveIndex == 0) {
             // Search the principal variation move at full depth and width.
-            bool nextPending = Rules::hasFive(b, color) &&
-                               Rules::isFiveBreakable(b, color);
+            bool nextPending = GomokuRules::hasFiveInRow(b, color) &&
+                               GomokuRules::isFiveBreakable(b, color);
             score = -negamax(b, depth - 1, ply + 1, -beta, -alpha, opp,
                              nextPending);
         } else {
@@ -186,8 +185,8 @@ int AI::negamax(Board& b, int depth, int ply, int alpha, int beta, Cell color,
                 if (reduction > depth - 1) reduction = depth - 1; // keep depth >= 0
             }
             // Null-window probe (PVS), possibly reduced.
-            bool nextPending = Rules::hasFive(b, color) &&
-                               Rules::isFiveBreakable(b, color);
+            bool nextPending = GomokuRules::hasFiveInRow(b, color) &&
+                               GomokuRules::isFiveBreakable(b, color);
             score = -negamax(b, depth - 1 - reduction, ply + 1,
                              -alpha - 1, -alpha, opp, nextPending);
             // Re-search at full depth/width if it looks like it could be best.
@@ -225,7 +224,7 @@ int AI::negamax(Board& b, int depth, int ply, int alpha, int beta, Cell color,
 
 // --- Root: iterative deepening ------------------------------------------------
 
-Point AI::getBestMove(GameEngine& engine, Cell aiColor) {
+Point GomokuAI::searchBestMove(GameEngine& engine, Cell aiColor) {
     startTime = std::chrono::steady_clock::now();
     nodeCount = 0;
 
@@ -240,10 +239,10 @@ Point AI::getBestMove(GameEngine& engine, Cell aiColor) {
 
     // Build the root move list once: only fully-legal moves (double-three rule)
     // so the move we ultimately return is guaranteed playable by the engine.
-    std::vector<Point> rawRoot = MoveGenerator::candidates(board);
+    std::vector<Point> rawRoot = MoveGenerator::generateCandidateMoves(board);
     std::vector<Point> rootMoves;
     for (const Point& m : rawRoot) {
-        if (Rules::isLegalMove(board, m.row, m.col, aiColor))
+        if (GomokuRules::isLegalMove(board, m.row, m.col, aiColor))
             rootMoves.push_back(m);
     }
     if (rootMoves.empty()) {
@@ -251,7 +250,7 @@ Point AI::getBestMove(GameEngine& engine, Cell aiColor) {
         // board. Fall back to a complete legal scan before returning a point.
         for (int r = 0; r < BOARD_SIZE; ++r)
             for (int c = 0; c < BOARD_SIZE; ++c)
-                if (Rules::isLegalMove(board, r, c, aiColor))
+                if (GomokuRules::isLegalMove(board, r, c, aiColor))
                     return Point{r, c};
         return Point{BOARD_SIZE / 2, BOARD_SIZE / 2};
     }
@@ -274,8 +273,8 @@ Point AI::getBestMove(GameEngine& engine, Cell aiColor) {
                 applySearchMove(board, m.row, m.col, aiColor, u);
                 int score;
                 if (moveIndex == 0) {
-                    bool nextPending = Rules::hasFive(board, aiColor) &&
-                                       Rules::isFiveBreakable(board, aiColor);
+                    bool nextPending = GomokuRules::hasFiveInRow(board, aiColor) &&
+                                       GomokuRules::isFiveBreakable(board, aiColor);
                     score = -negamax(board, depth - 1, 1, -beta, -alpha,
                                      opp, nextPending);
                 } else {
@@ -285,8 +284,8 @@ Point AI::getBestMove(GameEngine& engine, Cell aiColor) {
                     if (depth >= 3 && moveIndex >= 3 && u.nCaps == 0) {
                         reduction = 1 + (moveIndex >= 8 ? 1 : 0);
                     }
-                    bool nextPending = Rules::hasFive(board, aiColor) &&
-                                       Rules::isFiveBreakable(board, aiColor);
+                    bool nextPending = GomokuRules::hasFiveInRow(board, aiColor) &&
+                                       GomokuRules::isFiveBreakable(board, aiColor);
                     score = -negamax(board, depth - 1 - reduction, 1,
                                      -alpha - 1, -alpha, opp, nextPending);
                     if (score > alpha) {

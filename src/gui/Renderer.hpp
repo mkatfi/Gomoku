@@ -15,7 +15,7 @@ public:
     void renderAISetup(sf::RenderWindow& window, const std::string& difficulty, Cell humanColor);
 
     // ===== BONUS (Dark / Light theme) =====
-    void toggleTheme(); // switch between the arcade-dark and parchment-light board themes
+    void toggleTheme(); // switch the board between walnut and parchment palettes
 
     // --- Clickable button rectangles (single source of truth, also hit-tested
     //     by GameWindow). Positions are in window pixels. ---
@@ -35,12 +35,11 @@ public:
 private:
     sf::Font font;
 
-    // ===== BONUS (Dark / Light theme): palette swapped by toggleTheme =====
+    // ===== Board palette: swapped by toggleTheme =====
     bool darkMode = true; // dark arcade palette is the default look
     sf::Color boardColor;     // wood panel behind the grid
     sf::Color boardShadow;    // drop shadow cast by the board panel
     sf::Color lineColor;      // grid lines + hoshi points
-    sf::Color textColor;      // primary in-game text
     sf::Color stoneOutlineP1; // outline for Player 1 (crimson) stones
     sf::Color stoneOutlineP2; // outline for Player 2 (cream) stones
     void applyTheme();

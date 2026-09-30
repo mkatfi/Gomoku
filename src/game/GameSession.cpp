@@ -1,6 +1,6 @@
 #include "GameSession.hpp"
-#include "../engine/Rules.hpp"
-#include "../ai/AI.hpp"
+#include "../engine/GomokuRules.hpp"
+#include "../ai/GomokuAI.hpp"
 #include <chrono>
 
 GameSession::GameSession(bool playVsAI , Cell aiPlayerColor ) : currentTurn(BLACK), statusMsg("Black's turn"), vsAI(playVsAI), aiColor(aiPlayerColor) {}
@@ -31,7 +31,7 @@ bool GameSession::hasLegalMove(Cell color) const {
     const Board& b = engine.getBoard();
     for (int r = 0; r < BOARD_SIZE; ++r)
         for (int c = 0; c < BOARD_SIZE; ++c)
-            if (b.getCell(r, c) == EMPTY && Rules::isLegalMove(b, r, c, color))
+            if (b.getCell(r, c) == EMPTY && GomokuRules::isLegalMove(b, r, c, color))
                 return true;
     return false;
 }
@@ -44,10 +44,10 @@ void GameSession::clearSuggestion() { suggestion.reset(); }
 
 // Runs the AI search for the given color and records how long it took.
 Point GameSession::runSearch(Cell forColor) {
-    AI ai;
+    GomokuAI ai;
     ai.setTimeLimit(aiTimeMs); // BONUS (AI difficulty): apply chosen time budget
     auto start = std::chrono::steady_clock::now();
-    Point move = ai.getBestMove(engine, forColor);
+    Point move = ai.searchBestMove(engine, forColor);
     auto end = std::chrono::steady_clock::now();
     lastThinkMs = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
     return move;
@@ -84,7 +84,7 @@ void GameSession::updateStatusAfterMove() {
 
     // 2. Did that move create a *breakable* 5-in-a-row?
     // (If it was unbreakable, engine.isGameOver() would be true above)
-    bool breakableFive = Rules::hasFive(engine.getBoard(), currentTurn);
+    bool breakableFive = GomokuRules::hasFiveInRow(engine.getBoard(), currentTurn);
     std::string oppName = (currentTurn == BLACK) ? "White" : "Black";
 
     // 3. Hand over to the other player.
@@ -121,7 +121,7 @@ void GameSession::handleAITurn() {
 
     // Safety net: if the search could not return a legal move (e.g. a saturated
     // board), declare a draw instead of looping on an impossible move.
-    if (!Rules::isLegalMove(engine.getBoard(), bestMove.row, bestMove.col, aiColor)) {
+    if (!GomokuRules::isLegalMove(engine.getBoard(), bestMove.row, bestMove.col, aiColor)) {
         noLegalMove = true;
         statusMsg = "Draw - no legal moves remaining.";
         return;

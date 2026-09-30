@@ -2,7 +2,7 @@
 #define GAMEENGINE_HPP
 
 #include "Board.hpp"
-#include "Rules.hpp"
+#include "GomokuRules.hpp"
 #include <vector>
 #include <stdexcept>
 #include <string>

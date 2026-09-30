@@ -1,5 +1,7 @@
 #include "Renderer.hpp"
 #include "GuiConstants.hpp"
+#include "../engine/GomokuRules.hpp"
+#include <algorithm>
 #include <iostream>
 
 // ---------------------------------------------------------------------------
@@ -53,22 +55,19 @@ Renderer::Renderer() {
     }
 }
 
-// ===== BONUS (Dark / Light theme) =====
-// Dark = the primary arcade look (charcoal frame, deep wood board, gold grid).
-// Light = a secondary parchment variant for players who prefer a brighter board.
+// Board themes change the surface and grid contrast; the charcoal frame and
+// HUD remain consistent so player/status colors keep the same meaning.
 void Renderer::applyTheme() {
     if (darkMode) {
         boardColor     = sf::Color(52, 36, 26);    // near-black walnut
         boardShadow    = sf::Color(0, 0, 0, 150);
         lineColor      = sf::Color(198, 168, 120);  // warm gold-tan grid
-        textColor      = INK;
         stoneOutlineP1 = sf::Color(96, 16, 22);
         stoneOutlineP2 = sf::Color(150, 140, 125);
     } else {
         boardColor     = sf::Color(196, 154, 106);  // lighter parchment wood
         boardShadow    = sf::Color(0, 0, 0, 70);
         lineColor      = sf::Color(64, 42, 26);
-        textColor      = sf::Color(25, 25, 28);
         stoneOutlineP1 = sf::Color(120, 20, 26);
         stoneOutlineP2 = sf::Color(120, 110, 96);
     }
@@ -427,7 +426,10 @@ void Renderer::drawHoverPreview(sf::RenderWindow& window, const GameSession& ses
     if (board.getCell(row, col) != EMPTY) return;
 
     Cell turn = session.getCurrentTurn();
-    sf::Color base = (turn == BLACK) ? P1_COLOR : P2_COLOR;
+    bool legal = GomokuRules::isLegalMove(board, row, col, turn);
+    sf::Color base = legal
+        ? ((turn == BLACK) ? P1_COLOR : P2_COLOR)
+        : WARN;
 
     sf::Vector2f pos{(float)gui::MARGIN + col * gui::CELL_SIZE,
                      (float)gui::MARGIN + row * gui::CELL_SIZE};
@@ -436,10 +438,23 @@ void Renderer::drawHoverPreview(sf::RenderWindow& window, const GameSession& ses
     sf::CircleShape ghost(r);
     ghost.setOrigin({r, r});
     ghost.setPosition(pos);
-    ghost.setFillColor(sf::Color(base.r, base.g, base.b, 95));
-    ghost.setOutlineColor(sf::Color(base.r, base.g, base.b, 160));
+    ghost.setFillColor(sf::Color(base.r, base.g, base.b, legal ? 95 : 70));
+    ghost.setOutlineColor(sf::Color(base.r, base.g, base.b, legal ? 190 : 230));
     ghost.setOutlineThickness(1.5f);
     window.draw(ghost);
+
+    if (!legal) {
+        // A clear cross makes a forbidden double-three preview distinguishable
+        // from an ordinary empty intersection before the player clicks.
+        sf::VertexArray cross(sf::PrimitiveType::Lines, 4);
+        cross[0].position = {pos.x - 5.f, pos.y - 5.f};
+        cross[1].position = {pos.x + 5.f, pos.y + 5.f};
+        cross[2].position = {pos.x + 5.f, pos.y - 5.f};
+        cross[3].position = {pos.x - 5.f, pos.y + 5.f};
+        for (std::size_t i = 0; i < 4; ++i)
+            cross[i].color = sf::Color(255, 255, 255, 220);
+        window.draw(cross);
+    }
 }
 
 int Renderer::countStonesOnBoard(const GameSession& session) const {
@@ -553,12 +568,34 @@ void Renderer::drawHUD(sf::RenderWindow& window, const GameSession& session) {
     rule();
     y += 20.f;
 
-    // --- Captures (existing bonus feature, restyled) ---
+    // --- Capture-to-win progress: five lit segments represent five pairs ---
     drawText(window, "CAPTURES", x, y, 13, INK_DIM, true);
     y += 20.f;
-    drawText(window, "P1: " + std::to_string(board.getCaptures(BLACK)) +
-                       "    P2: " + std::to_string(board.getCaptures(WHITE)),
-             x, y, 16, INK);
+    auto drawCaptureTrack = [&](Cell color, const std::string& label,
+                                sf::Color tint, float rowY) {
+        int pairs = std::min(5, board.getCaptures(color) / 2);
+        drawText(window, label, x, rowY - 2.f, 12, INK_DIM, true);
+        drawText(window, std::to_string(pairs) + "/5", x + 27.f, rowY - 2.f,
+                 12, tint, true);
+
+        const float trackX = x + 76.f;
+        const float segmentW = 25.f;
+        const float segmentH = 10.f;
+        const float gap = 6.f;
+        for (int i = 0; i < 5; ++i) {
+            sf::RectangleShape segment({segmentW, segmentH});
+            segment.setPosition({trackX + i * (segmentW + gap), rowY});
+            segment.setFillColor(i < pairs
+                ? tint
+                : sf::Color(tint.r, tint.g, tint.b, 35));
+            segment.setOutlineColor(sf::Color(tint.r, tint.g, tint.b, 150));
+            segment.setOutlineThickness(1.f);
+            window.draw(segment);
+        }
+    };
+    drawCaptureTrack(BLACK, "P1", P1_COLOR, y);
+    y += 27.f;
+    drawCaptureTrack(WHITE, "P2", P2_COLOR, y);
     y += 34.f;
 
     // --- Mode + AI think time (existing bonus feature, restyled) ---

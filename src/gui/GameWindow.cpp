@@ -37,7 +37,7 @@ void GameWindow::processEvents() {
             return;
         }
 
-        // ===== BONUS (Dark / Light theme): [T] works on every screen =====
+        // The board palette is remembered even while a menu is visible.
         if (const auto* key = event->getIf<sf::Event::KeyPressed>()) {
             if (key->code == sf::Keyboard::Key::T) {
                 renderer.toggleTheme();

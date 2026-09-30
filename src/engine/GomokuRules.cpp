@@ -1,10 +1,10 @@
-#include "Rules.hpp"
+#include "GomokuRules.hpp"
 
 // -------------------------
 // Core Mechanics & Helpers
 // -------------------------
 
-int Rules::countDirection(const Board& board, int r, int c, int dr, int dc, Cell color) {
+int GomokuRules::countDirection(const Board& board, int r, int c, int dr, int dc, Cell color) {
     int count = 0;
     int nr = r + dr;
     int nc = c + dc;
@@ -16,7 +16,7 @@ int Rules::countDirection(const Board& board, int r, int c, int dr, int dc, Cell
     return count;
 }
 
-std::vector<Point> Rules::checkCaptures(const Board& board, int r, int c, Cell color) {
+std::vector<Point> GomokuRules::findCapturedStones(const Board& board, int r, int c, Cell color) {
     std::vector<Point> captured;
     if (!board.inBounds(r, c) || (color != BLACK && color != WHITE))
         return captured;
@@ -44,7 +44,7 @@ std::vector<Point> Rules::checkCaptures(const Board& board, int r, int c, Cell c
     return captured;
 }
 
-void Rules::applyCaptures(Board& board, const std::vector<Point>& captured, Cell color) {
+void GomokuRules::applyCaptures(Board& board, const std::vector<Point>& captured, Cell color) {
     for (const Point& p : captured)
         board.setCell(p.row, p.col, EMPTY);
     board.addCaptures(color, static_cast<int>(captured.size()));
@@ -54,7 +54,7 @@ void Rules::applyCaptures(Board& board, const std::vector<Point>& captured, Cell
 // Win Conditions
 // -------------------------
 
-bool Rules::hasFiveAt(const Board& board, int r, int c, Cell color) {
+bool GomokuRules::hasFiveInRowAt(const Board& board, int r, int c, Cell color) {
     int dr[] = {0, 1, 1, 1};
     int dc[] = {1, 0, 1, -1};
     
@@ -66,17 +66,17 @@ bool Rules::hasFiveAt(const Board& board, int r, int c, Cell color) {
     return false;
 }
 
-bool Rules::hasFive(const Board& board, Cell color) {
+bool GomokuRules::hasFiveInRow(const Board& board, Cell color) {
     for (int r = 0; r < BOARD_SIZE; r++) {
         for (int c = 0; c < BOARD_SIZE; c++) {
-            if (board.getCell(r, c) == color && hasFiveAt(board, r, c, color))
+            if (board.getCell(r, c) == color && hasFiveInRowAt(board, r, c, color))
                 return true;
         }
     }
     return false;
 }
 
-bool Rules::hasTenCaptures(const Board& board, Cell color) {
+bool GomokuRules::hasCaptureWin(const Board& board, Cell color) {
     return board.getCaptures(color) >= 10;
 }
 
@@ -84,7 +84,7 @@ bool Rules::hasTenCaptures(const Board& board, Cell color) {
 // Advanced Rules (Breakable Five)
 // -------------------------
 
-bool Rules::checkIfCorrectFive(const Board& board, int r, int c, Cell opponentColor, Cell winnerColor) {
+bool GomokuRules::checkIfCorrectFive(const Board& board, int r, int c, Cell opponentColor, Cell winnerColor) {
     // The refutation must itself be a legal move. In particular, the opponent
     // cannot "break" a five with a forbidden double-three move.
     if (!isLegalMove(board, r, c, opponentColor))
@@ -93,7 +93,7 @@ bool Rules::checkIfCorrectFive(const Board& board, int r, int c, Cell opponentCo
     Board simBoard = board;
     simBoard.setCell(r, c, opponentColor);
 
-    std::vector<Point> caps = checkCaptures(simBoard, r, c, opponentColor);
+    std::vector<Point> caps = findCapturedStones(simBoard, r, c, opponentColor);
     if (caps.empty()) return false; // a move that captures nothing can't refute the five
 
     applyCaptures(simBoard, caps, opponentColor);
@@ -104,13 +104,13 @@ bool Rules::checkIfCorrectFive(const Board& board, int r, int c, Cell opponentCo
     //   (b) brings the opponent to ten captures (five pairs) — per the subject's
     //       endgame-capture rule, a capture win takes priority even if the line
     //       itself stays intact.
-    if (!hasFive(simBoard, winnerColor)) return true;
+    if (!hasFiveInRow(simBoard, winnerColor)) return true;
     if (board.getCaptures(opponentColor) + (int)caps.size() >= 10) return true;
 
     return false;
 }
 
-bool Rules::isFiveBreakable(const Board& board, Cell winnerColor) {
+bool GomokuRules::isFiveBreakable(const Board& board, Cell winnerColor) {
     Cell opponentColor = getOpponent(winnerColor);
     for (int r = 0; r < BOARD_SIZE; r++) {
         for (int c = 0; c < BOARD_SIZE; c++) {
@@ -127,7 +127,7 @@ bool Rules::isFiveBreakable(const Board& board, Cell winnerColor) {
 // Advanced Rules (Double Three)
 // -------------------------
 
-bool Rules::isOpenFourAt(const Board& board, int r, int c, int dr, int dc, Cell color) {
+bool GomokuRules::isOpenFourAt(const Board& board, int r, int c, int dr, int dc, Cell color) {
     int startR = r, startC = c;
     
     while (board.inBounds(startR - dr, startC - dc) && board.getCell(startR - dr, startC - dc) == color) {
@@ -149,7 +149,7 @@ bool Rules::isOpenFourAt(const Board& board, int r, int c, int dr, int dc, Cell 
     return openBefore && openAfter;
 }
 
-bool Rules::isFreeThreeAt(const Board& board, int r, int c, int dr, int dc, Cell color) {
+bool GomokuRules::isFreeThreeAt(const Board& board, int r, int c, int dr, int dc, Cell color) {
     for (int offset = -3; offset <= 3; offset++) {
         int tr = r + (offset * dr);
         int tc = c + (offset * dc);
@@ -181,7 +181,7 @@ bool Rules::isFreeThreeAt(const Board& board, int r, int c, int dr, int dc, Cell
     return false;
 }
 
-bool Rules::isDoubleThree(const Board& board, int r, int c, Cell color) {
+bool GomokuRules::isDoubleThree(const Board& board, int r, int c, Cell color) {
     if (!board.inBounds(r, c) || board.getCell(r, c) != EMPTY)
         return false;
 
@@ -201,7 +201,7 @@ bool Rules::isDoubleThree(const Board& board, int r, int c, Cell color) {
 // General Move Validation
 // -------------------------
 
-bool Rules::isLegalMove(const Board& board, int r, int c, Cell color) {
+bool GomokuRules::isLegalMove(const Board& board, int r, int c, Cell color) {
     if (color != BLACK && color != WHITE)
         return false;
     if (!board.inBounds(r, c) || board.getCell(r, c) != EMPTY) {
@@ -210,7 +210,7 @@ bool Rules::isLegalMove(const Board& board, int r, int c, Cell color) {
 
     // Double-Three rule exception: legal if it results in a capture
     if (isDoubleThree(board, r, c, color)) {
-        if (checkCaptures(board, r, c, color).empty()) {
+        if (findCapturedStones(board, r, c, color).empty()) {
             return false;
         }
     }
